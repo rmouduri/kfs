@@ -25,7 +25,6 @@ extern kmain
 _start:
     mov esp, stack_top
     call kmain
-    cli
 .halt_loop:
     hlt
     jmp .halt_loop

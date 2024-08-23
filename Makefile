@@ -1,14 +1,15 @@
 BUILD_DIR		=	build
+SRC_DIR			=	src
 OBJ_DIR			=	${BUILD_DIR}/obj
 ISO_DIR			=	${BUILD_DIR}/iso
 
 KERNEL		=	${BUILD_DIR}/kfs.bin
 ISO			=	${BUILD_DIR}/kfs.iso
 
-BOOT_SRC		=	src/boot.asm
-KERNEL_SRC		=	src/kernel.c
-LINKER_SRC		=	src/linker.ld
-GRUB_SRC		=	src/grub.cfg
+BOOT_SRC		=	${SRC_DIR}/kernel/boot.asm
+KERNEL_SRC		=	${SRC_DIR}/kernel/kernel.c
+LINKER_SRC		=	${SRC_DIR}/utils/linker.ld
+GRUB_SRC		=	${SRC_DIR}/utils/grub.cfg
 
 FLAGS		=	-fno-builtin -fno-exceptions -fno-stack-protector -nostdlib -nodefaultlibs
 
@@ -34,7 +35,7 @@ run-iso: iso
 	qemu-system-i386 -cdrom ${ISO}
 
 clean:
-	rm -rf $(KERNEL) $(ISO)
+	rm -rf ${KERNEL} ${ISO}
 
 fclean:
 	clear
