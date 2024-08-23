@@ -83,7 +83,8 @@ IDTR_t	idt_register;
 IDT_t	idt[IDT_ENTRIES];
 
 
-static inline void outb(const uint16_t port, const uint8_t val) {
+static inline
+void outb(const uint16_t port, const uint8_t val) {
     __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port) : "memory");
 }
 
@@ -96,7 +97,8 @@ static inline uint8_t inb(uint16_t port) {
     return ret;
 }
 
-static inline void io_wait(void) {
+static inline
+void io_wait(void) {
     outb(0x80, 0);
 }
 
@@ -213,24 +215,8 @@ void terminal_writestring(const char* data) {
 	terminal_write(data, strlen(data));
 }
 
-static const char keyboard_map[128] = {
-    [0x1E] = 'a', [0x30] = 'b', [0x2E] = 'c', [0x20] = 'd',
-    [0x12] = 'e', [0x21] = 'f', [0x22] = 'g', [0x23] = 'h',
-    [0x17] = 'i', [0x24] = 'j', [0x25] = 'k', [0x26] = 'l',
-    [0x32] = 'm', [0x31] = 'n', [0x18] = 'o', [0x19] = 'p',
-    [0x10] = 'q', [0x13] = 'r', [0x1F] = 's', [0x14] = 't',
-    [0x16] = 'u', [0x2F] = 'v', [0x11] = 'w', [0x2D] = 'x',
-    [0x15] = 'y', [0x2C] = 'z'
-};
-
 void isr_keyboard(void) {
-    uint8_t scan_code = inb(0x60);
-
-    if (scan_code < 0x80) {
-		terminal_putchar(keyboard_map[scan_code]);
-	}
-
-    outb(PIC1_COMMAND, 0x20);
+	terminal_putchar('P');
 }
 
 void kmain(void) {
