@@ -68,7 +68,7 @@ enum vga_color {
 	VGA_COLOR_WHITE = 15,
 };
 
-void terminal_writestring(const char* data);
+// void terminal_writestring(const char* data);
 extern void isr_wrapper();
 
 static const size_t	VGA_WIDTH = 80;
@@ -78,6 +78,11 @@ size_t		terminal_row;
 size_t		terminal_column;
 uint8_t		terminal_color;
 uint16_t*	terminal_buffer;
+bool		lshift = false;
+bool		rshift = false;
+bool		shift = false;
+bool		maj = false;
+bool		rdy_to_disable_maj = false;
 
 IDTR_t	idt_register;
 IDT_t	idt[IDT_ENTRIES];
@@ -183,17 +188,17 @@ void terminal_initialize(void) {
 	}
 }
 
-void terminal_setcolor(const uint8_t color) {
+static inline void terminal_setcolor(const uint8_t color) {
 	terminal_color = color;
 }
 
-void terminal_putentryat(const char c, const uint8_t color, const size_t x, const size_t y) {
+static inline void terminal_putentryat(const char c, const uint8_t color, const size_t x, const size_t y) {
 	const size_t index = y * VGA_WIDTH + x;
 
 	terminal_buffer[index] = vga_entry(c, color);
 }
 
-void terminal_putchar(const char c) {
+static inline void terminal_putchar(const char c) {
 	terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
 	if (++terminal_column == VGA_WIDTH) {
 		terminal_column = 0;
@@ -203,31 +208,99 @@ void terminal_putchar(const char c) {
 	}
 }
 
-void terminal_write(const char* data, const size_t size) {
+static inline void terminal_write(const char* data, const size_t size) {
 	for (size_t i = 0; i < size; i++) {
 		terminal_putchar(data[i]);
 	}
 }
 
-void terminal_writestring(const char* data) {
+static inline void terminal_writestring(const char* data) {
 	terminal_write(data, strlen(data));
 }
 
-static const char keyboard_map[128] = {
-    [0x1E] = 'a', [0x30] = 'b', [0x2E] = 'c', [0x20] = 'd',
-    [0x12] = 'e', [0x21] = 'f', [0x22] = 'g', [0x23] = 'h',
-    [0x17] = 'i', [0x24] = 'j', [0x25] = 'k', [0x26] = 'l',
-    [0x32] = 'm', [0x31] = 'n', [0x18] = 'o', [0x19] = 'p',
-    [0x10] = 'q', [0x13] = 'r', [0x1F] = 's', [0x14] = 't',
-    [0x16] = 'u', [0x2F] = 'v', [0x11] = 'w', [0x2D] = 'x',
-    [0x15] = 'y', [0x2C] = 'z'
+static inline void terminal_putnbr_base(int n, char* base, size_t base_len) {
+	long nb = n;
+
+	if (nb < 0) {
+		terminal_putchar('-');
+		nb *= -1;
+	}
+
+	if (nb >= base_len) {
+		terminal_putnbr_base((int)(nb / base_len), base, base_len);
+	}
+
+	terminal_putchar(base[(nb % base_len)]);
+}
+
+char keyboard_table[128][2] = {
+    {0, 0}, {0, 0}, {'1', '!'}, {'2', '@'}, {'3', '#'}, {'4', '$'}, {'5', '%'}, {'6', '^'}, // 0x00 - 0x07
+    {'7', '&'}, {'8', '*'}, {'9', '('}, {'0', ')'}, {'-', '_'}, {'=', '+'}, {0, 0}, {0, 0}, // 0x08 - 0x0F
+    {'q', 'Q'}, {'w', 'W'}, {'e', 'E'}, {'r', 'R'}, {'t', 'T'}, {'y', 'Y'}, {'u', 'U'}, {'i', 'I'}, // 0x10 - 0x17
+    {'o', 'O'}, {'p', 'P'}, {'[', '{'}, {']', '}'}, {0, 0}, {0, 0}, {'a', 'A'}, {'s', 'S'}, // 0x18 - 0x1F
+    {'d', 'D'}, {'f', 'F'}, {'g', 'G'}, {'h', 'H'}, {'j', 'J'}, {'k', 'K'}, {'l', 'L'}, {';', ':'}, // 0x20 - 0x27
+    {'\'', '"'}, {'`', '~'}, {0, 0}, {'\\', '|'}, {'z', 'Z'}, {'x', 'X'}, {'c', 'C'}, {'v', 'V'}, // 0x28 - 0x2F
+    {'b', 'B'}, {'n', 'N'}, {'m', 'M'}, {',', '<'}, {'.', '>'}, {'/', '?'}, {0, 0}, {'*', '*'}, // 0x30 - 0x37
+    {0, 0}, {' ', ' '}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},                         // 0x38 - 0x3F
+    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},                         // 0x40 - 0x47
+    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},                         // 0x48 - 0x4F
+    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},                         // 0x50 - 0x57
+    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},                         // 0x58 - 0x5F
+    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},                         // 0x60 - 0x67
+    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},                         // 0x68 - 0x6F
+    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},                         // 0x70 - 0x77
+    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}                          // 0x78 - 0x7F
 };
 
-void isr_keyboard(void) {
-    uint8_t scan_code = inb(0x60);
+#define LSHIFT_PRESS	0x2A
+#define LSHIFT_RELEASE	0xAA
+#define RSHIFT_PRESS	0x36
+#define RSHIFT_RELEASE	0xB6
 
-    if (scan_code < 0x80) {
-		terminal_putchar(keyboard_map[scan_code]);
+#define CAPSLOCK_PRESS		0x3A
+#define CAPSLOCK_RELEASE	0xBA
+
+void isr_keyboard(void) {
+    const uint8_t scan_code = inb(0x60);
+	uint8_t c = keyboard_table[scan_code][shift];
+
+	if (c) {
+		if (maj && ((c >= 'a' && c <= 'z') || c >= 'A' && c <= 'Z')) {
+			c = keyboard_table[scan_code][!shift];
+		}
+
+		terminal_putchar(c);
+	} else {
+		switch (scan_code) {
+			case LSHIFT_PRESS:
+				lshift = true;
+				break;
+			case RSHIFT_PRESS:
+				rshift = true;
+				break;
+			case LSHIFT_RELEASE:
+				lshift = false;
+				break;
+			case RSHIFT_RELEASE:
+				rshift = false;
+				break;
+			case CAPSLOCK_PRESS:
+				if (rdy_to_disable_maj == false) {
+					maj = true;
+					rdy_to_disable_maj = false;
+				}
+				break;
+			case CAPSLOCK_RELEASE:
+				if (rdy_to_disable_maj == false) {
+					rdy_to_disable_maj = true;
+				} else {
+					maj = false;
+					rdy_to_disable_maj = false;
+				}
+			default:
+				break;
+		}
+		shift = lshift | rshift;
 	}
 
     outb(PIC1_COMMAND, 0x20);
