@@ -274,15 +274,19 @@ void isr_keyboard(void) {
 		switch (scan_code) {
 			case LSHIFT_PRESS:
 				lshift = true;
+				shift = lshift | rshift;
 				break;
 			case RSHIFT_PRESS:
 				rshift = true;
+				shift = lshift | rshift;
 				break;
 			case LSHIFT_RELEASE:
 				lshift = false;
+				shift = lshift | rshift;
 				break;
 			case RSHIFT_RELEASE:
 				rshift = false;
+				shift = lshift | rshift;
 				break;
 			case CAPSLOCK_PRESS:
 				if (rdy_to_disable_maj == false) {
@@ -300,7 +304,6 @@ void isr_keyboard(void) {
 			default:
 				break;
 		}
-		shift = lshift | rshift;
 	}
 
     outb(PIC1_COMMAND, 0x20);
