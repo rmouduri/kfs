@@ -2,6 +2,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define EMPTY	' '
+
 #define PIC1			0x20		/* IO base address for master PIC */
 #define PIC2			0xA0		/* IO base address for slave PIC */
 #define IRQ_START		0x20
@@ -76,6 +78,7 @@ static const size_t	VGA_HEIGHT = 25;
 
 size_t		terminal_row;
 size_t		terminal_column;
+size_t		terminal_written_column;
 uint8_t		terminal_color;
 uint16_t*	terminal_buffer;
 bool		lshift = false;
@@ -176,6 +179,7 @@ size_t strlen(const char* str) {
 void terminal_initialize(void) {
 	terminal_row = 0;
 	terminal_column = 0;
+	terminal_written_column = 0;
 	terminal_color = vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
 	terminal_buffer = (uint16_t*) 0xB8000; // Reserved address of VGA to store text to display
 
@@ -183,7 +187,7 @@ void terminal_initialize(void) {
 		for (size_t x = 0; x < VGA_WIDTH; x++) {
 			const size_t index = y * VGA_WIDTH + x;
 
-			terminal_buffer[index] = vga_entry(' ', terminal_color);
+			terminal_buffer[index] = vga_entry(EMPTY, terminal_color);
 		}
 	}
 }
@@ -198,14 +202,76 @@ static inline void terminal_putentryat(const char c, const uint8_t color, const 
 	terminal_buffer[index] = vga_entry(c, color);
 }
 
-static inline void terminal_putchar(const char c) {
-	terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
+static inline void update_cursor(size_t x, size_t y) {
+	uint16_t pos = y * VGA_WIDTH + x;
+
+	outb(0x3D4, 0x0F);
+	outb(0x3D5, (uint8_t) (pos & 0xFF));
+	outb(0x3D4, 0x0E);
+	outb(0x3D5, (uint8_t) ((pos >> 8) & 0xFF));
+}
+
+static inline void move_cursor_left() {
+	if (terminal_column) {
+		--terminal_column;
+	} else if (terminal_row) {
+		terminal_column = VGA_WIDTH - 1;
+		--terminal_row;
+	}
+	update_cursor(terminal_column, terminal_row);
+}
+
+static inline void move_cursor_right() {
 	if (++terminal_column == VGA_WIDTH) {
 		terminal_column = 0;
+		terminal_written_column = 0;
 		if (++terminal_row == VGA_HEIGHT) {
 			terminal_row = 0;
 		}
 	}
+	update_cursor(terminal_column, terminal_row);
+}
+
+static inline void terminal_putchar(const char c) {
+	size_t index = terminal_row * VGA_WIDTH + terminal_column;
+
+	// for (; index < VGA_WIDTH; ++index) {
+	// 	terminal_putentryat(terminal_buffer[index], terminal_color, index - 1, terminal_row);
+	// }
+	terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
+	++terminal_written_column;
+	move_cursor_right();
+}
+
+static inline void delete_last_char() {
+	if (!terminal_column) {
+		return;
+	}
+
+	size_t index = terminal_row * VGA_WIDTH + terminal_column;
+	size_t x = terminal_column;
+
+	for (; x < VGA_WIDTH; ++x, ++index) {
+		terminal_putentryat(terminal_buffer[index], terminal_color, x - 1, terminal_row);
+	}
+	terminal_putentryat(EMPTY, terminal_color, x - 1, terminal_row);
+
+	--terminal_written_column;
+	move_cursor_left();
+}
+
+static inline void delete_next_char() {
+	if (!terminal_column == VGA_WIDTH - 1) {
+		return;
+	}
+
+	size_t index = terminal_row * VGA_WIDTH + terminal_column;
+
+	for (; index < VGA_WIDTH - 1; ++index) {
+		terminal_putentryat(terminal_buffer[index + 1], terminal_color, index, terminal_row);
+	}
+	terminal_putentryat(EMPTY, terminal_color, index - 1, terminal_row);
+	--terminal_written_column;
 }
 
 static inline void terminal_write(const char* data, const size_t size) {
@@ -260,8 +326,45 @@ char keyboard_table[128][2] = {
 #define CAPSLOCK_PRESS		0x3A
 #define CAPSLOCK_RELEASE	0xBA
 
+#define BACKSPACE_PRESS	0x0E
+
+
+#define EXTENDED_BYTE	0xE0
+/* Extended Bytes sent after 0xE0 */
+#define DELETE_PRESS 	0x53
+
+#define CURSOR_RIGHT_PRESS	0x4d
+#define CURSOR_LEFT_PRESS	0x4B
+#define CURSOR_UP_PRESS		0x48
+#define CURSOR_DOWN_PRESS	0x50
+
+
+static inline void handle_extended_byte(const uint8_t scan_code) {
+	switch (scan_code) {
+		case DELETE_PRESS:
+			delete_next_char();
+			break;
+		case CURSOR_RIGHT_PRESS:
+			if (terminal_written_column > terminal_column) {
+				move_cursor_right();
+			}
+			break;
+		case CURSOR_LEFT_PRESS:
+			move_cursor_left();
+			break;
+		case CURSOR_UP_PRESS:
+			// handle_up_press();
+			break;
+		case CURSOR_DOWN_PRESS:
+			// handle_down_press();
+			break;
+		default:
+			break;
+	}
+}
+
 void isr_keyboard(void) {
-    const uint8_t scan_code = inb(0x60);
+    uint8_t scan_code = inb(0x60);
 	uint8_t c = keyboard_table[scan_code][shift];
 
 	if (c) {
@@ -272,6 +375,13 @@ void isr_keyboard(void) {
 		terminal_putchar(c);
 	} else {
 		switch (scan_code) {
+			case EXTENDED_BYTE:
+				scan_code = inb(0x60);
+				handle_extended_byte(scan_code);
+				break;
+			case BACKSPACE_PRESS:
+				delete_last_char();
+				break;
 			case LSHIFT_PRESS:
 				lshift = true;
 				shift = lshift | rshift;
