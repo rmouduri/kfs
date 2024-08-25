@@ -36,6 +36,9 @@
 #define P_PRESENT 0b10000000	// bit 7 set to 1
 #define DEFAULT_FLAG	TYPE_INTERRUPT_GATE | DPL_KERNEL | P_PRESENT
 
+#define TERMINAL_PROMPT			"kfs> "
+#define TERMINAL_PROMPT_SIZE	strlen(TERMINAL_PROMPT)
+
 
 typedef struct InterruptDescriptorRegister32 {
 	uint16_t	size;
@@ -212,39 +215,42 @@ static inline void update_cursor(size_t x, size_t y) {
 }
 
 static inline void move_cursor_left() {
-	if (terminal_column) {
+	if (terminal_column > TERMINAL_PROMPT_SIZE) {
 		--terminal_column;
-	} else if (terminal_row) {
-		terminal_column = VGA_WIDTH - 1;
-		--terminal_row;
+		update_cursor(terminal_column, terminal_row);
 	}
-	update_cursor(terminal_column, terminal_row);
 }
 
 static inline void move_cursor_right() {
-	if (++terminal_column == VGA_WIDTH) {
-		terminal_column = 0;
-		terminal_written_column = 0;
-		if (++terminal_row == VGA_HEIGHT) {
-			terminal_row = 0;
-		}
+	if (terminal_column < VGA_WIDTH - 1) {
+		++terminal_column;
+		update_cursor(terminal_column, terminal_row);
 	}
-	update_cursor(terminal_column, terminal_row);
 }
 
 static inline void terminal_putchar(const char c) {
-	size_t index = terminal_row * VGA_WIDTH + terminal_column;
-
-	// for (; index < VGA_WIDTH; ++index) {
-	// 	terminal_putentryat(terminal_buffer[index], terminal_color, index - 1, terminal_row);
-	// }
 	terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
-	++terminal_written_column;
 	move_cursor_right();
 }
 
+static inline void terminal_insert_char(const char c) {
+	if (terminal_written_column < VGA_WIDTH) {
+		if (terminal_column < terminal_written_column) {
+			size_t written_index = terminal_row * VGA_WIDTH + terminal_written_column;
+			size_t x = terminal_written_column;
+
+			for (; x > terminal_column; --x, --written_index) {
+				terminal_putentryat(terminal_buffer[written_index - 1], terminal_color, x, terminal_row);
+			}
+		}
+		terminal_putentryat(c, terminal_color, terminal_column, terminal_row);
+		++terminal_written_column;
+		move_cursor_right();
+	}
+}
+
 static inline void delete_last_char() {
-	if (!terminal_column) {
+	if (terminal_column == TERMINAL_PROMPT_SIZE) {
 		return;
 	}
 
@@ -255,22 +261,22 @@ static inline void delete_last_char() {
 		terminal_putentryat(terminal_buffer[index], terminal_color, x - 1, terminal_row);
 	}
 	terminal_putentryat(EMPTY, terminal_color, x - 1, terminal_row);
-
 	--terminal_written_column;
 	move_cursor_left();
 }
 
 static inline void delete_next_char() {
-	if (!terminal_column == VGA_WIDTH - 1) {
+	if (terminal_column >= terminal_written_column) {
 		return;
 	}
 
 	size_t index = terminal_row * VGA_WIDTH + terminal_column;
+	size_t x = terminal_column;
 
-	for (; index < VGA_WIDTH - 1; ++index) {
-		terminal_putentryat(terminal_buffer[index + 1], terminal_color, index, terminal_row);
+	for (; x < VGA_WIDTH - 1; ++x, ++index) {
+		terminal_putentryat(terminal_buffer[index + 1], terminal_color, x, terminal_row);
 	}
-	terminal_putentryat(EMPTY, terminal_color, index - 1, terminal_row);
+	terminal_putentryat(EMPTY, terminal_color, x, terminal_row);
 	--terminal_written_column;
 }
 
@@ -299,24 +305,38 @@ static inline void terminal_putnbr_base(int n, char* base, size_t base_len) {
 	terminal_putchar(base[(nb % base_len)]);
 }
 
-char keyboard_table[128][2] = {
-    {0, 0}, {0, 0}, {'1', '!'}, {'2', '@'}, {'3', '#'}, {'4', '$'}, {'5', '%'}, {'6', '^'}, // 0x00 - 0x07
-    {'7', '&'}, {'8', '*'}, {'9', '('}, {'0', ')'}, {'-', '_'}, {'=', '+'}, {0, 0}, {0, 0}, // 0x08 - 0x0F
-    {'q', 'Q'}, {'w', 'W'}, {'e', 'E'}, {'r', 'R'}, {'t', 'T'}, {'y', 'Y'}, {'u', 'U'}, {'i', 'I'}, // 0x10 - 0x17
-    {'o', 'O'}, {'p', 'P'}, {'[', '{'}, {']', '}'}, {0, 0}, {0, 0}, {'a', 'A'}, {'s', 'S'}, // 0x18 - 0x1F
-    {'d', 'D'}, {'f', 'F'}, {'g', 'G'}, {'h', 'H'}, {'j', 'J'}, {'k', 'K'}, {'l', 'L'}, {';', ':'}, // 0x20 - 0x27
-    {'\'', '"'}, {'`', '~'}, {0, 0}, {'\\', '|'}, {'z', 'Z'}, {'x', 'X'}, {'c', 'C'}, {'v', 'V'}, // 0x28 - 0x2F
-    {'b', 'B'}, {'n', 'N'}, {'m', 'M'}, {',', '<'}, {'.', '>'}, {'/', '?'}, {0, 0}, {'*', '*'}, // 0x30 - 0x37
-    {0, 0}, {' ', ' '}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},                         // 0x38 - 0x3F
-    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},                         // 0x40 - 0x47
-    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},                         // 0x48 - 0x4F
-    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},                         // 0x50 - 0x57
-    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},                         // 0x58 - 0x5F
-    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},                         // 0x60 - 0x67
-    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},                         // 0x68 - 0x6F
-    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0},                         // 0x70 - 0x77
-    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}                          // 0x78 - 0x7F
+void terminal_prompt(void) {
+	terminal_color = vga_entry_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
+	terminal_column = 0;
+	terminal_row = VGA_HEIGHT - 1;
+
+	terminal_writestring("kfs> ");
+
+	terminal_written_column = terminal_column;
+	terminal_color = vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+}
+
+// char qwerty_keyboard_table[128][2] = {
+#define QWERTY_KEYBOARD_TABLE { \
+    {0, 0}, {0, 0}, {'1', '!'}, {'2', '@'}, {'3', '#'}, {'4', '$'}, {'5', '%'}, {'6', '^'}, \
+    {'7', '&'}, {'8', '*'}, {'9', '('}, {'0', ')'}, {'-', '_'}, {'=', '+'}, {0, 0}, {0, 0}, \
+    {'q', 'Q'}, {'w', 'W'}, {'e', 'E'}, {'r', 'R'}, {'t', 'T'}, {'y', 'Y'}, {'u', 'U'}, {'i', 'I'}, \
+    {'o', 'O'}, {'p', 'P'}, {'[', '{'}, {']', '}'}, {0, 0}, {0, 0}, {'a', 'A'}, {'s', 'S'}, \
+    {'d', 'D'}, {'f', 'F'}, {'g', 'G'}, {'h', 'H'}, {'j', 'J'}, {'k', 'K'}, {'l', 'L'}, {';', ':'}, \
+    {'\'', '"'}, {'`', '~'}, {0, 0}, {'\\', '|'}, {'z', 'Z'}, {'x', 'X'}, {'c', 'C'}, {'v', 'V'}, \
+    {'b', 'B'}, {'n', 'N'}, {'m', 'M'}, {',', '<'}, {'.', '>'}, {'/', '?'}, {0, 0}, {'*', '*'}, \
+    {0, 0}, {' ', ' '}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, \
+    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, \
+    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, \
+    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, \
+    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, \
+    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, \
+    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, \
+    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, \
+    {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0} \
 };
+
+char qwerty_keyboard_table[128][2] = QWERTY_KEYBOARD_TABLE;
 
 #define LSHIFT_PRESS	0x2A
 #define LSHIFT_RELEASE	0xAA
@@ -365,14 +385,14 @@ static inline void handle_extended_byte(const uint8_t scan_code) {
 
 void isr_keyboard(void) {
     uint8_t scan_code = inb(0x60);
-	uint8_t c = keyboard_table[scan_code][shift];
+	uint8_t c = qwerty_keyboard_table[scan_code][shift];
 
 	if (c) {
 		if (maj && ((c >= 'a' && c <= 'z') || c >= 'A' && c <= 'Z')) {
-			c = keyboard_table[scan_code][!shift];
+			c = qwerty_keyboard_table[scan_code][!shift];
 		}
 
-		terminal_putchar(c);
+		terminal_insert_char(c);
 	} else {
 		switch (scan_code) {
 			case EXTENDED_BYTE:
@@ -426,12 +446,11 @@ void kmain(void) {
 	/* Initialize terminal interface */
 	terminal_initialize();
 
-	/* Newline support is left as an exercise. */
-	terminal_writestring("Hello, kernel World!\n");
-
 	initialize_idt();
 	load_idt();
 	PIC_remap();
+
+	terminal_prompt();
 
 	// Restore interruptions
 	__asm__ volatile ("sti");
