@@ -65,7 +65,7 @@ void initialize_idt(void) {
 	idt[IRQ_START + KEYBOARD_INTERRUPT_IRQ].offset_2 = ((uintptr_t) isr_wrapper >> 16) & 0xFFFF;
 }
 
-void load_idt() {
+void load_idt(void) {
     idt_register.size = (sizeof(IDT_t) * IDT_ENTRIES) - 1;
 	idt_register.idt = (uint32_t) &idt;
 
@@ -81,16 +81,39 @@ inline void update_cursor(size_t x, size_t y) {
 	outb(0x3D5, (uint8_t) ((pos >> 8) & 0xFF));
 }
 
-inline void move_cursor_left() {
-	if (terminal_column[current_tty] > TERMINAL_PROMPT_SIZE) {
-		--terminal_column[current_tty];
-		update_cursor(terminal_column[current_tty], terminal_row[current_tty]);
+inline void move_cursor_left(void) {
+	if (terminal_column[curr_tty] > 0) {
+		--terminal_column[curr_tty];
+		update_cursor(terminal_column[curr_tty], terminal_row[curr_tty]);
 	}
 }
 
-inline void move_cursor_right() {
-	if (terminal_column[current_tty] < VGA_WIDTH - 1) {
-		++terminal_column[current_tty];
-		update_cursor(terminal_column[current_tty], terminal_row[current_tty]);
+inline void move_cursor_right(void) {
+	if (terminal_column[curr_tty] < VGA_WIDTH - 1) {
+		++terminal_column[curr_tty];
+		update_cursor(terminal_column[curr_tty], terminal_row[curr_tty]);
+	}
+}
+
+inline void terminal_putnbr_base(int n, char* base, size_t base_len) {
+	long nb = n;
+
+	if (nb < 0) {
+		terminal_putchar('-');
+		nb *= -1;
+	}
+
+	if (nb >= base_len) {
+		terminal_putnbr_base((int)(nb / base_len), base, base_len);
+	}
+
+	terminal_putchar(base[(nb % base_len)]);
+}
+
+void kmemset(void* ptr, const int8_t value, const size_t num) {
+	int8_t* c_ptr = ptr;
+
+	for (size_t i = 0; i < num; ++i) {
+		c_ptr[i] = value;
 	}
 }

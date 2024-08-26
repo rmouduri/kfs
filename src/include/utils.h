@@ -14,6 +14,6 @@ uint8_t inb(uint16_t port);
 void PIC_remap(void);
 void initialize_idt(void);
 void load_idt();
-
+void kmemset(void* ptr, const int8_t value, const size_t num);
 
 #endif // _UTILS_H_

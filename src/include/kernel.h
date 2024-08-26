@@ -39,11 +39,12 @@
 # define P_PRESENT 0b10000000	// bit 7 set to 1
 # define DEFAULT_FLAG	TYPE_INTERRUPT_GATE | DPL_KERNEL | P_PRESENT
 
-# define VGA_WIDTH	80
-# define VGA_HEIGHT	25
-# define MAX_TTY	10
+# define VGA_WIDTH		80
+# define VGA_HEIGHT		25
+# define MAX_TTY		10
+# define MAX_HISTORY	32
 # define TERMINAL_PROMPT		"kfs> "
-# define TERMINAL_PROMPT_SIZE	5 // strlen of TERMINAL_PROMPT
+# define TERMINAL_PROMPT_LEN	5 // strlen of TERMINAL_PROMPT
 
 
 typedef struct InterruptDescriptorRegister32 {
@@ -79,13 +80,15 @@ enum vga_color {
 	VGA_COLOR_WHITE = 15,
 };
 
+# define DEFAULT_COLOR	vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK)
+
 extern size_t		terminal_row[MAX_TTY];
 extern size_t		terminal_column[MAX_TTY];
 extern size_t		terminal_written_column[MAX_TTY];
 extern uint8_t		terminal_color[MAX_TTY];
 extern uint16_t*	terminal_buffer;
 extern uint16_t		tty[MAX_TTY][VGA_WIDTH * VGA_HEIGHT];
-extern uint8_t		current_tty;
+extern uint8_t		curr_tty;
 
 
 extern void isr_wrapper();
@@ -95,5 +98,6 @@ void terminal_putchar(const char c);
 void terminal_insert_char(const char c);
 void terminal_writestring(const char* data);
 uint8_t vga_entry_color(const enum vga_color fg, const enum vga_color bg);
+uint16_t vga_entry(const unsigned char uc, const uint8_t color);
 
 #endif // _KERNEL_H_

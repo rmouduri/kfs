@@ -20,6 +20,19 @@
     {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0}, {0, 0} \
 };
 
+# define TERMINAL_PROMPT_COLORS { \
+    { VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK }, \
+    { VGA_COLOR_BLUE, VGA_COLOR_BLACK }, \
+    { VGA_COLOR_RED, VGA_COLOR_BLACK }, \
+    { VGA_COLOR_BROWN, VGA_COLOR_BLACK }, \
+    { VGA_COLOR_CYAN, VGA_COLOR_BLACK }, \
+    { VGA_COLOR_MAGENTA, VGA_COLOR_BLACK }, \
+    { VGA_COLOR_LIGHT_BLUE, VGA_COLOR_BLACK }, \
+    { VGA_COLOR_LIGHT_CYAN, VGA_COLOR_BLACK }, \
+    { VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK }, \
+    { VGA_COLOR_LIGHT_MAGENTA, VGA_COLOR_BLACK } \
+};
+
 
 /* KEYBOARD PRESSES */
 # define LSHIFT_PRESS	0x2A
@@ -59,5 +72,7 @@
 
 void terminal_prompt(void);
 void swap_tty(const uint8_t new_tty);
+void init_colors(void);
+void init_history(void);
 
 #endif // _KEYBOARD_H_

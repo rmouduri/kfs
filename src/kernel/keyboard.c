@@ -5,84 +5,172 @@
 #include "utils.h"
 
 
-static char	qwerty_keyboard_table[128][2] = QWERTY_KEYBOARD_TABLE;
-static bool	lshift = false;
-static bool	rshift = false;
-static bool	shift = false;
-static bool	maj = false;
-static bool	rdy_to_disable_maj = false;
+static const uint8_t default_colors[MAX_TTY][2] = TERMINAL_PROMPT_COLORS;
+static uint8_t	prompts_colors[MAX_TTY];
+static char		qwerty_keyboard_table[128][2] = QWERTY_KEYBOARD_TABLE;
+static size_t	history_total_index[MAX_TTY];
+static int		history_current_index[MAX_TTY];
+static uint16_t	history[MAX_TTY][MAX_HISTORY][VGA_WIDTH];
+static bool		lshift = false;
+static bool		rshift = false;
+static bool		shift = false;
+static bool		maj = false;
+static bool		rdy_to_disable_maj = false;
 
 
-static inline void delete_last_char() {
-	if (terminal_column[current_tty] == TERMINAL_PROMPT_SIZE) {
+void init_colors(void) {
+	for (int i = 0; i < MAX_TTY; ++i) {
+		prompts_colors[i] = vga_entry_color(default_colors[i][0], default_colors[i][1]);
+	}
+}
+
+void init_history(void) {
+	kmemset(history_current_index, 0, sizeof(uint8_t) * MAX_TTY);
+	kmemset(history_total_index, 0, sizeof(uint8_t) * MAX_TTY);
+	kmemset(history, 0, sizeof(uint16_t) * (MAX_TTY * MAX_HISTORY * VGA_WIDTH));
+}
+
+static inline void delete_last_char(void) {
+	if (terminal_column[curr_tty] == TERMINAL_PROMPT_LEN) {
 		return;
 	}
 
-	size_t index = terminal_row[current_tty] * VGA_WIDTH + terminal_column[current_tty];
-	size_t x = terminal_column[current_tty];
+	size_t index = terminal_row[curr_tty] * VGA_WIDTH + terminal_column[curr_tty];
+	size_t x = terminal_column[curr_tty];
 
 	for (; x < VGA_WIDTH; ++x, ++index) {
-		terminal_putentryat(terminal_buffer[index], terminal_color[current_tty], x - 1, terminal_row[current_tty]);
+		terminal_putentryat(terminal_buffer[index], terminal_color[curr_tty], x - 1, terminal_row[curr_tty]);
 	}
-	terminal_putentryat(EMPTY, terminal_color[current_tty], x - 1, terminal_row[current_tty]);
-	--terminal_written_column[current_tty];
+	terminal_putentryat(EMPTY, terminal_color[curr_tty], x - 1, terminal_row[curr_tty]);
+	--terminal_written_column[curr_tty];
 	move_cursor_left();
 }
 
-static inline void delete_next_char() {
-	if (terminal_column[current_tty] >= terminal_written_column[current_tty]) {
+static inline void delete_next_char(void) {
+	if (terminal_column[curr_tty] >= terminal_written_column[curr_tty]) {
 		return;
 	}
 
-	size_t index = terminal_row[current_tty] * VGA_WIDTH + terminal_column[current_tty];
-	size_t x = terminal_column[current_tty];
+	size_t index = terminal_row[curr_tty] * VGA_WIDTH + terminal_column[curr_tty];
+	size_t x = terminal_column[curr_tty];
 
 	for (; x < VGA_WIDTH - 1; ++x, ++index) {
-		terminal_putentryat(terminal_buffer[index + 1], terminal_color[current_tty], x, terminal_row[current_tty]);
+		terminal_putentryat(terminal_buffer[index + 1], terminal_color[curr_tty], x, terminal_row[curr_tty]);
 	}
-	terminal_putentryat(EMPTY, terminal_color[current_tty], x, terminal_row[current_tty]);
-	--terminal_written_column[current_tty];
+	terminal_putentryat(EMPTY, terminal_color[curr_tty], x, terminal_row[curr_tty]);
+	--terminal_written_column[curr_tty];
+}
+
+void save_to_history(void) {
+	long input_end = terminal_written_column[curr_tty];
+
+	for (; input_end >= TERMINAL_PROMPT_LEN; --input_end) {
+		if ((terminal_buffer[VGA_WIDTH * (VGA_HEIGHT - 1) + input_end] & 0x00FF) != EMPTY) {
+			break ;
+		}
+	}
+
+	if (input_end < TERMINAL_PROMPT_LEN) {
+		return ;
+	}
+
+	if (input_end < VGA_WIDTH - 1) {
+		history[curr_tty][history_total_index[curr_tty] % MAX_HISTORY][input_end + 1] = 0;
+	}
+
+	for (; input_end >= 0; --input_end) {
+		history[curr_tty][history_total_index[curr_tty] % MAX_HISTORY][input_end] =
+			terminal_buffer[VGA_WIDTH * (VGA_HEIGHT - 1) + input_end];
+	}
+
+	++history_total_index[curr_tty];
 }
 
 void terminal_prompt(void) {
-	terminal_color[current_tty] = vga_entry_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK);
-	terminal_column[current_tty] = 0;
-	terminal_row[current_tty] = VGA_HEIGHT - 1;
+	terminal_color[curr_tty] = prompts_colors[curr_tty];
+	terminal_column[curr_tty] = 0;
+	terminal_row[curr_tty] = VGA_HEIGHT - 1;
 
 	terminal_writestring(TERMINAL_PROMPT);
-	terminal_written_column[current_tty] = terminal_column[current_tty];
-	terminal_color[current_tty] = vga_entry_color(VGA_COLOR_LIGHT_GREY, VGA_COLOR_BLACK);
+	terminal_written_column[curr_tty] = terminal_column[curr_tty];
+	terminal_color[curr_tty] = DEFAULT_COLOR;
 
-	for (int i = 0; i < VGA_WIDTH - TERMINAL_PROMPT_SIZE; ++i) {
-		terminal_putentryat(EMPTY, terminal_color[current_tty], terminal_column[current_tty] + i, terminal_row[current_tty]);
+	for (int i = 0; i < VGA_WIDTH - TERMINAL_PROMPT_LEN; ++i) {
+		terminal_putentryat(EMPTY, terminal_color[curr_tty], terminal_column[curr_tty] + i, terminal_row[curr_tty]);
 	}
 }
 
-static inline void handle_extended_byte(const uint8_t scan_code) {
-	switch (scan_code) {
-		case EXTENDED_ENTER_PRESS:
-			terminal_prompt();
-			break;
-		case DELETE_PRESS:
-			delete_next_char();
-			break;
-		case CURSOR_RIGHT_PRESS:
-			if (terminal_written_column[current_tty] > terminal_column[current_tty]) {
-				move_cursor_right();
-			}
-			break;
-		case CURSOR_LEFT_PRESS:
-			move_cursor_left();
-			break;
-		case CURSOR_UP_PRESS:
-			// handle_up_press();
-			break;
-		case CURSOR_DOWN_PRESS:
-			// handle_down_press();
-			break;
-		default:
-			break;
+static inline void handle_down_press(void) {
+	if (!history_total_index[curr_tty] || history_current_index[curr_tty] == -1) {
+		return;
+	} else if (history_current_index[curr_tty] == (history_total_index[curr_tty] - 1) % MAX_HISTORY) {
+		history_current_index[curr_tty] = -1;
+		terminal_prompt();
+		return;
 	}
+
+	if (history_total_index[curr_tty] <= MAX_HISTORY && history_current_index[curr_tty] < history_total_index[curr_tty]) {
+		++history_current_index[curr_tty];
+	} else if (history_total_index[curr_tty] > MAX_HISTORY) {
+		if (history_current_index[curr_tty] == MAX_HISTORY - 1) {
+			history_current_index[curr_tty] = 0;
+		} else {
+			++history_current_index[curr_tty];
+		}
+	}
+
+	uint16_t c = history[curr_tty][history_current_index[curr_tty]][TERMINAL_PROMPT_LEN];
+	terminal_column[curr_tty] = TERMINAL_PROMPT_LEN;
+	while ((terminal_column[curr_tty] < VGA_WIDTH) && (c & 0x00FF)) {
+		terminal_buffer[VGA_WIDTH * (VGA_HEIGHT - 1) + terminal_column[curr_tty]] = c;
+
+		++terminal_column[curr_tty];
+		c = history[curr_tty][history_current_index[curr_tty]][terminal_column[curr_tty]];
+	}
+
+	for (int i = terminal_column[curr_tty]; i < VGA_WIDTH; ++i) {
+		terminal_buffer[VGA_WIDTH * (VGA_HEIGHT - 1) + i] = vga_entry(EMPTY, DEFAULT_COLOR);
+	}
+
+	terminal_written_column[curr_tty] = terminal_column[curr_tty];
+	update_cursor(terminal_column[curr_tty], terminal_row[curr_tty]);
+}
+
+static inline void handle_up_press(void) {
+	if (!history_total_index[curr_tty]) {
+		return;
+	}
+
+	if (history_current_index[curr_tty] == -1) {
+		history_current_index[curr_tty] = (history_total_index[curr_tty] - 1) % MAX_HISTORY;
+	} else {
+		if (history_total_index[curr_tty] <= MAX_HISTORY && history_current_index[curr_tty]) {
+			--history_current_index[curr_tty];
+		} else if (history_total_index[curr_tty] > MAX_HISTORY
+				&& (history_total_index[curr_tty] % MAX_HISTORY) != history_current_index[curr_tty]) {
+			if (!history_current_index[curr_tty]) {
+				history_current_index[curr_tty] = MAX_HISTORY - 1;
+			} else {
+				--history_current_index[curr_tty];
+			}
+		}
+	}
+
+	uint16_t c = history[curr_tty][history_current_index[curr_tty]][TERMINAL_PROMPT_LEN];
+	terminal_column[curr_tty] = TERMINAL_PROMPT_LEN;
+	while ((terminal_column[curr_tty] < VGA_WIDTH) && (c & 0x00FF)) {
+		terminal_buffer[VGA_WIDTH * (VGA_HEIGHT - 1) + terminal_column[curr_tty]] = c;
+
+		++terminal_column[curr_tty];
+		c = history[curr_tty][history_current_index[curr_tty]][terminal_column[curr_tty]];
+	}
+
+	for (int i = terminal_column[curr_tty]; i < VGA_WIDTH; ++i) {
+		terminal_buffer[VGA_WIDTH * (VGA_HEIGHT - 1) + i] = vga_entry(' ', DEFAULT_COLOR);
+	}
+
+	terminal_written_column[curr_tty] = terminal_column[curr_tty];
+	update_cursor(terminal_column[curr_tty], terminal_row[curr_tty]);
 }
 
 inline void swap_tty(const uint8_t new_tty) {
@@ -90,13 +178,53 @@ inline void swap_tty(const uint8_t new_tty) {
 		for (size_t x = 0; x < VGA_WIDTH; x++) {
 			const size_t index = y * VGA_WIDTH + x;
 
-			tty[current_tty][index] = terminal_buffer[index];
+			tty[curr_tty][index] = terminal_buffer[index];
 			terminal_buffer[index] = tty[new_tty][index];
 		}
 	}
 
-	current_tty = new_tty;
-	update_cursor(terminal_column[current_tty], terminal_row[current_tty]);
+	curr_tty = new_tty;
+	update_cursor(terminal_column[curr_tty], terminal_row[curr_tty]);
+}
+
+static inline void display_full_history(void) {
+	for (int i = 0; i < VGA_HEIGHT - 1; ++i) {
+		for (int j = 0; j < VGA_WIDTH; ++j) {
+			terminal_buffer[i * VGA_WIDTH + j] = terminal_buffer[(i + 1) * VGA_WIDTH + j];
+		}
+	}
+}
+
+static inline void handle_extended_byte(const uint8_t scan_code) {
+	switch (scan_code) {
+		case EXTENDED_ENTER_PRESS:
+			save_to_history();
+			display_full_history();
+			terminal_prompt();
+			history_current_index[curr_tty] = -1;
+			break;
+		case DELETE_PRESS:
+			delete_next_char();
+			break;
+		case CURSOR_RIGHT_PRESS:
+			if (terminal_written_column[curr_tty] > terminal_column[curr_tty]) {
+				move_cursor_right();
+			}
+			break;
+		case CURSOR_LEFT_PRESS:
+			if (terminal_column[curr_tty] > TERMINAL_PROMPT_LEN) {
+				move_cursor_left();
+			}
+			break;
+		case CURSOR_UP_PRESS:
+			handle_up_press();
+			break;
+		case CURSOR_DOWN_PRESS:
+			handle_down_press();
+			break;
+		default:
+			break;
+	}
 }
 
 void isr_keyboard(void) {
@@ -112,7 +240,10 @@ void isr_keyboard(void) {
 	} else {
 		switch (scan_code) {
 			case ENTER_PRESS:
+				save_to_history();
+				display_full_history();
 				terminal_prompt();
+				history_current_index[curr_tty] = -1;
 				break;
 			case EXTENDED_BYTE:
 				scan_code = inb(0x60);
@@ -161,7 +292,7 @@ void isr_keyboard(void) {
 			case F9_PRESSED:
 			case F10_PRESSED:
 				const uint8_t new_tty = scan_code - F1_PRESSED;
-				if (current_tty != new_tty) {
+				if (curr_tty != new_tty) {
 					swap_tty(new_tty);
 				}
 				break;
