@@ -25,11 +25,11 @@ extern kmain
 extern isr_keyboard
 
 isr_wrapper:
-    pushad
-    cld
+    pushad ; Save current registeries
+    cld ; Make string operations from left to right so isr_keyboards works correctly
     call isr_keyboard
-    popad
-    iretd
+    popad ; Restore saved registeries
+    iretd ; Load previous state before the interruption
 
 _start:
     mov esp, stack_top

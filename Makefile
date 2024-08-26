@@ -7,7 +7,13 @@ KERNEL		=	${BUILD_DIR}/kfs.bin
 ISO			=	${BUILD_DIR}/kfs.iso
 
 BOOT_SRC		=	${SRC_DIR}/kernel/boot.asm
+
 KERNEL_SRC		=	${SRC_DIR}/kernel/kernel.c
+KEYBOARD_SRC	=	${SRC_DIR}/kernel/keyboard.c
+UTILS_SRC		=	${SRC_DIR}/kernel/utils.c
+
+INCLUDES		=	${SRC_DIR}/include
+
 LINKER_SRC		=	${SRC_DIR}/utils/linker.ld
 GRUB_SRC		=	${SRC_DIR}/utils/grub.cfg
 
@@ -19,8 +25,10 @@ all: build
 build:
 	mkdir -p ${OBJ_DIR}
 	nasm -f elf32 ${BOOT_SRC} -o ${OBJ_DIR}/boot.o
-	gcc -m32 -ffreestanding ${FLAGS} -c ${KERNEL_SRC} -o ${OBJ_DIR}/kernel.o
-	ld -m elf_i386 -T ${LINKER_SRC} -o ${KERNEL} ${OBJ_DIR}/boot.o ${OBJ_DIR}/kernel.o
+	gcc -m32 -ffreestanding ${FLAGS} -I${INCLUDES} -c ${KERNEL_SRC} -o ${OBJ_DIR}/kernel.o
+	gcc -m32 -ffreestanding ${FLAGS} -I${INCLUDES} -c ${KEYBOARD_SRC} -o ${OBJ_DIR}/keyboard.o
+	gcc -m32 -ffreestanding ${FLAGS} -I${INCLUDES} -c ${UTILS_SRC} -o ${OBJ_DIR}/utils.o
+	ld -m elf_i386 -T ${LINKER_SRC} -o ${KERNEL} ${OBJ_DIR}/boot.o ${OBJ_DIR}/kernel.o ${OBJ_DIR}/keyboard.o ${OBJ_DIR}/utils.o
 
 run: build
 	qemu-system-i386 -kernel ${KERNEL}
