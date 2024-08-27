@@ -15,5 +15,6 @@ void PIC_remap(void);
 void initialize_idt(void);
 void load_idt();
 void kmemset(void* ptr, const int8_t value, const size_t num);
+void kprintf(const char* format, ...);
 
 #endif // _UTILS_H_

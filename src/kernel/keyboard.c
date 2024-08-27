@@ -231,6 +231,10 @@ void isr_keyboard(void) {
     uint8_t scan_code = inb(0x60);
 	uint8_t c = qwerty_keyboard_table[scan_code][shift];
 
+	#ifdef DEBUG 
+		kprintf("scan_code: 0x%x/%d\nchar: %c", scan_code, scan_code, c);
+	#endif
+
 	if (c) {
 		if (maj && ((c >= 'a' && c <= 'z') || c >= 'A' && c <= 'Z')) {
 			c = qwerty_keyboard_table[scan_code][!shift];

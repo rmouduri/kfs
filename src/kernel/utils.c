@@ -1,3 +1,5 @@
+#include <stdarg.h>
+
 #include "kernel.h"
 #include "utils.h"
 
@@ -95,19 +97,21 @@ inline void move_cursor_right(void) {
 	}
 }
 
-inline void terminal_putnbr_base(int n, char* base, size_t base_len) {
+static inline size_t terminal_putnbr_base(int n, const char* base, const size_t base_len, size_t pos) {
 	long nb = n;
 
 	if (nb < 0) {
-		terminal_putchar('-');
+		terminal_putentryat('-', DEFAULT_COLOR, pos % VGA_WIDTH, pos / VGA_WIDTH);
+		++pos;
 		nb *= -1;
 	}
 
 	if (nb >= base_len) {
-		terminal_putnbr_base((int)(nb / base_len), base, base_len);
+		pos = terminal_putnbr_base((int)(nb / base_len), base, base_len, pos);
 	}
 
-	terminal_putchar(base[(nb % base_len)]);
+	terminal_putentryat(base[(nb % base_len)], DEFAULT_COLOR, pos % VGA_WIDTH, pos / VGA_WIDTH);
+	return ++pos;
 }
 
 void kmemset(void* ptr, const int8_t value, const size_t num) {
@@ -115,5 +119,59 @@ void kmemset(void* ptr, const int8_t value, const size_t num) {
 
 	for (size_t i = 0; i < num; ++i) {
 		c_ptr[i] = value;
+	}
+}
+
+void kprintf(const char* format, ...) {
+	va_list	va_params;
+	size_t	buffer_index = 0;
+	char	c, f;
+
+	va_start(va_params, format);
+	for (int i = 0; format[i]; ++i) {
+		c = format[i];
+		if (c == '%') {
+			++i;
+			if(!(f = format[i])) {
+				break;
+			}
+			switch (f) {
+				case '%':
+					terminal_putentryat('%', DEFAULT_COLOR, buffer_index % VGA_WIDTH, buffer_index / VGA_WIDTH);
+					++buffer_index;
+					break;
+				case 'c':
+					terminal_putentryat((char) va_arg(va_params, int), DEFAULT_COLOR, buffer_index % VGA_WIDTH, buffer_index / VGA_WIDTH);
+					++buffer_index;
+					break;
+				case 'd':
+					buffer_index = terminal_putnbr_base((int) va_arg(va_params, int), "0123456789", 10, buffer_index);
+					break;
+				case 'x':
+					buffer_index = terminal_putnbr_base((int) va_arg(va_params, int), "0123456789ABCDEF", 16, buffer_index);
+					break;
+				case 's':
+					const char *s = (char *) va_arg(va_params, char *);
+					for (int s_i = 0; s[s_i]; ++s_i) {
+						terminal_putentryat(s[s_i], DEFAULT_COLOR, buffer_index % VGA_WIDTH, buffer_index / VGA_WIDTH);
+						++buffer_index;
+					}
+					break;
+				default:
+					break;
+			}
+		} else if (c == '\n') {
+			buffer_index -= buffer_index % VGA_WIDTH;
+			buffer_index += VGA_WIDTH;
+		} else {
+			terminal_putentryat(c, DEFAULT_COLOR, buffer_index % VGA_WIDTH, buffer_index / VGA_WIDTH);
+			++buffer_index;
+		}
+	}
+	va_end(va_params);
+
+	while (buffer_index % VGA_WIDTH) {
+		terminal_putentryat(EMPTY, DEFAULT_COLOR, buffer_index % VGA_WIDTH, buffer_index / VGA_WIDTH);
+		++buffer_index;
 	}
 }
