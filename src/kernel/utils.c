@@ -6,6 +6,9 @@
 
 static IDTR_t	idt_register;
 static IDT_t	idt[IDT_ENTRIES];
+GDTR_t*	gdt_register = (GDTR_t *) 0x00000800;
+// GDTR_t	gdt_register;
+GDT_t	gdt[GDT_ENTRIES];
 
 inline void outb(const uint16_t port, const uint8_t val) {
     __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port) : "memory");
@@ -72,6 +75,64 @@ void load_idt(void) {
 	idt_register.idt = (uint32_t) &idt;
 
     __asm__ volatile ("lidt %0" : : "m"(idt_register));
+}
+
+
+void set_gdt_entry(const int index, const uint32_t base, const uint32_t limit,
+		const uint8_t access, const uint8_t granularity) {
+    gdt[index].base_low = (base & 0xFFFF);
+    gdt[index].base_middle = (base >> 16) & 0xFF;
+    gdt[index].base_high = (base >> 24) & 0xFF;
+    gdt[index].limit_low = (limit & 0xFFFF);
+    gdt[index].granularity = (limit >> 16) & 0x0F;
+    gdt[index].granularity |= (granularity & 0xF0);
+    gdt[index].access = access;
+}
+
+
+void init_gdt() {
+	const uint32_t	base = 0;
+    const uint32_t	limit = 0xFFFFF;
+
+
+	gdt_register->size = (sizeof(GDT_t) * GDT_ENTRIES) - 1;
+    gdt_register->gdt = (uint32_t)&gdt;
+
+    // Segment 0: NULL Segment, mandatory
+    set_gdt_entry(0, 0, 0, 0, 0);
+
+    // Segment 1: Kernel code
+    set_gdt_entry(1, base, limit, 0x9A, 0xCF);
+
+    // Segment 2: Kernel data
+    set_gdt_entry(2, base, limit, 0x92, 0xCF);
+
+	// Segment 3: Kernel stack, same as Kernel data
+    set_gdt_entry(3, base, limit, 0x92, 0xCF);
+
+    // Segment 4: User code
+    set_gdt_entry(4, base, limit, 0xFA, 0xCF);
+
+    // Segment 5: User data
+    set_gdt_entry(5, base, limit, 0xF2, 0xCF);
+
+	// Segment 6: User stack, same as User data
+    set_gdt_entry(6, base, limit, 0xF2, 0xCF);
+
+    // Load the new GDT
+    __asm__ volatile ("lgdt %0" : : "m"(*gdt_register));
+	// Reload the segment registers to the new Kernel Data segment:  index 2 = 0x10
+    __asm__ volatile (
+        "mov $0x10, %ax\n"
+        "mov %ax, %ds\n"
+        "mov %ax, %es\n"
+        "mov %ax, %fs\n"
+        "mov %ax, %gs\n"
+        "mov %ax, %ss\n"
+		// Jump to provoke a segment change to make sure the segment registers are reloaded properly
+        "jmp $0x08, $.1\n"
+        ".1:\n"
+    );
 }
 
 inline void update_cursor(size_t x, size_t y) {
@@ -174,4 +235,16 @@ void kprintf(const char* format, ...) {
 		terminal_putentryat(EMPTY, DEFAULT_COLOR, buffer_index % VGA_WIDTH, buffer_index / VGA_WIDTH);
 		++buffer_index;
 	}
+}
+
+void* kmemcpy(void *dest, const void *src, size_t n) {
+	size_t				i = -1;
+	unsigned char		*destcpy = dest;
+	const unsigned char	*srccpy = src;
+
+	while (++i < n) {
+		destcpy[i] = srccpy[i];
+	}
+
+	return (dest);
 }

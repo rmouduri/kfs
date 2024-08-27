@@ -106,12 +106,15 @@ void kmain(void) {
 	// Deactivate interruptions while kernel starts
 	__asm__ volatile ("cli");
 
-	/* Initialize terminal interface */
-	terminal_initialize();
+	// https://wiki.osdev.org/Global_Descriptor_Table
+	// https://wiki.osdev.org/GDT_Tutorial
+	init_gdt();
 
 	initialize_idt();
 	load_idt();
 	PIC_remap();
+
+	terminal_initialize();
 
 	// Restore interruptions
 	__asm__ volatile ("sti");

@@ -32,6 +32,7 @@
 # define ICW4_SFNM		0x10		/* Special fully nested (not) */
 
 # define IDT_ENTRIES		256
+# define GDT_ENTRIES		7
 # define KEYBOARD_INTERRUPT_IRQ	1
 # define GDT_CODE_SEGMENT	0x8
 # define TYPE_INTERRUPT_GATE 0xE
@@ -46,19 +47,32 @@
 # define TERMINAL_PROMPT		"kfs> "
 # define TERMINAL_PROMPT_LEN	5 // strlen of TERMINAL_PROMPT
 
-
 typedef struct InterruptDescriptorRegister32 {
 	uint16_t	size;
 	uint32_t	idt;
 } __attribute__((packed)) IDTR_t;
 
 typedef struct InterruptDescriptor32 {
-	uint16_t	offset_1;        // offset bits 0..15
-	uint16_t	selector;        // a code segment selector in GDT or LDT
-	uint8_t		zero;            // unused, set to 0
-	uint8_t		type_attributes; // gate type, dpl, and p fields
-	uint16_t	offset_2;        // offset bits 16..31
+	uint16_t	offset_1;			// offset bits 0..15
+	uint16_t	selector;			// a code segment selector in GDT or LDT
+	uint8_t		zero;				// unused, set to 0
+	uint8_t		type_attributes;	// gate type, dpl, and p fields
+	uint16_t	offset_2;			// offset bits 16..31
 } __attribute__((packed)) IDT_t;
+
+typedef struct GlobalDescriptorRegister32 {
+	uint16_t	size;
+	uint32_t	gdt;
+} __attribute__((packed)) GDTR_t;
+
+typedef struct GlobalDescriptor32 {
+	uint16_t	limit_low;		// Limite (16 bits)
+    uint16_t	base_low;		// Base (16 bits)
+    uint8_t		base_middle;	// Base (8 bits)
+    uint8_t		access;			// Drapeaux d'accès
+    uint8_t		granularity;	// Granularité
+    uint8_t		base_high;		// Base (8 bits)
+} __attribute__((packed)) GDT_t;
 
 /* Hardware text mode color constants. */
 enum vga_color {
