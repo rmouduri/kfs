@@ -6,9 +6,8 @@
 
 static IDTR_t	idt_register;
 static IDT_t	idt[IDT_ENTRIES];
-GDTR_t*	gdt_register = (GDTR_t *) 0x00000800;
-// GDTR_t	gdt_register;
-GDT_t	gdt[GDT_ENTRIES];
+GDTR_t *	gdt_register = (GDTR_t *) 0x00000800;
+GDT_t		gdt[GDT_ENTRIES];
 
 inline void outb(const uint16_t port, const uint8_t val) {
     __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port) : "memory");
@@ -158,7 +157,7 @@ inline void move_cursor_right(void) {
 	}
 }
 
-static inline size_t terminal_putnbr_base(int n, const char* base, const size_t base_len, size_t pos) {
+size_t terminal_putnbr_base(int n, const char* base, const size_t base_len, size_t pos) {
 	long nb = n;
 
 	if (nb < 0) {

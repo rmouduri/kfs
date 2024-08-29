@@ -202,6 +202,11 @@ static inline void display_full_history(const int gap) {
 #define COLOR_COMMAND_LEN	6
 #define COLOR_MSG	"You are now writing in "
 
+#define GDT_COMMAND			"gdt "
+#define GDT_COMMAND_LEN		4
+#define GDTR_COMMAND		"gdtr "
+#define GDTR_COMMAND_LEN	5
+
 static void write_color_msg(const char * color_str, const uint16_t color) {
 	terminal_column[curr_tty] = 0;
 	terminal_row[curr_tty] = VGA_HEIGHT - 2;
@@ -227,7 +232,7 @@ static void change_color(uint16_t* arg_ptr) {
 			const char *	color_str = color_palet[color_index];
 			const size_t	color_len = kstrlen(color_str);
 
-			if (((uint32_t) (arg_ptr + color_len) < TERMINAL_LIMIT) && (kstrncmp(arg_ptr, color_str, color_len) == 0)) {
+			if (((uint32_t) (arg_ptr + color_len) <= TERMINAL_LIMIT) && (kstrncmp(arg_ptr, color_str, color_len) == 0)) {
 				const uint16_t color = vga_entry_color(color_index, VGA_COLOR_BLACK);
 
 				display_full_history(2);
@@ -246,6 +251,72 @@ static void change_color(uint16_t* arg_ptr) {
 	}
 }
 
+static void print_gdt(void) {
+	uint8_t * gdt_ptr = (uint8_t *) &gdt;
+	const char hexa_base[] = "0123456789abcdef";
+
+	display_full_history(1 + (sizeof(GDT_t) * GDT_ENTRIES / 16) + 1);
+	terminal_column[curr_tty] = 12;
+	terminal_row[curr_tty] = VGA_HEIGHT - 1 - (sizeof(GDT_t) * GDT_ENTRIES / 16) - 1;
+
+	for (int i = 0; i < (sizeof(GDT_t) * GDT_ENTRIES / 16) + 1; ++i) {
+		terminal_column[curr_tty] = 0;
+
+		terminal_writestring("0x00");
+		terminal_putnbr_base(
+			((uint32_t) gdt) + (i * 16), hexa_base, 16,
+			((VGA_HEIGHT - 1 - (sizeof(GDT_t) * GDT_ENTRIES / 16) - 1) + i) * VGA_WIDTH + 4) % 16;
+
+		++terminal_row[curr_tty];
+	}
+
+	terminal_column[curr_tty] = 12;
+	terminal_row[curr_tty] = VGA_HEIGHT - 1 - (sizeof(GDT_t) * GDT_ENTRIES / 16) - 1;
+
+	for (int i = 0; i < sizeof(GDT_t) * (GDT_ENTRIES + 1); ++i) {
+		if ((*(gdt_ptr + i)) < 10) {
+			terminal_putchar('0');
+		}
+		terminal_column[curr_tty] = terminal_putnbr_base(
+			(*(gdt_ptr + i)), hexa_base, 16, terminal_row[curr_tty] * VGA_WIDTH + terminal_column[curr_tty]) % VGA_WIDTH;
+
+		if ((*(gdt_ptr + i)) % 16 == 1) {
+			terminal_putchar('0');
+		}
+		if (i && (i + 1) % 8 == 0) {
+			terminal_putchar(' ');
+		}
+		terminal_putchar(' ');
+
+		if ((i + 1) % 16 == 0) {
+			++terminal_row[curr_tty];
+			terminal_column[curr_tty] = 12;
+		}
+	}
+}
+
+static void print_gdtr(void) {
+	uint8_t * gdtr_ptr = (uint8_t *) 0x00000800;
+	const char hexa_base[] = "0123456789abcdef";
+
+	display_full_history(2);
+	terminal_column[curr_tty] = 0;
+	terminal_row[curr_tty] = VGA_HEIGHT - 2;
+	terminal_writestring("0x00000800  ");
+
+	for (int i = 0; i < 16; ++i) {
+		terminal_column[curr_tty] = terminal_putnbr_base(
+			(*(gdtr_ptr + i)), hexa_base, 16, terminal_row[curr_tty] * VGA_WIDTH + terminal_column[curr_tty]) % VGA_WIDTH;
+		if ((*(gdtr_ptr + i)) % 16 == 1 || (*(gdtr_ptr + i)) == 0) {
+			terminal_putchar('0');
+		}
+		if (i && (i + 1) % 8 == 0) {
+			terminal_putchar(' ');
+		}
+		terminal_putchar(' ');
+	}
+}
+
 static int check_command(void) {
 	size_t index = TERMINAL_PROMPT_LEN;
 
@@ -259,8 +330,14 @@ static int check_command(void) {
 
 	uint16_t * curr_buff = &terminal_buffer[VGA_WIDTH * (VGA_HEIGHT - 1) + index];
 
-	if (index + COLOR_COMMAND_LEN < VGA_WIDTH && kstrncmp(curr_buff, COLOR_COMMAND, COLOR_COMMAND_LEN) == 0) {
+	if (index + COLOR_COMMAND_LEN < VGA_WIDTH + 1 && kstrncmp(curr_buff, COLOR_COMMAND, COLOR_COMMAND_LEN) == 0) {
 		change_color(curr_buff + COLOR_COMMAND_LEN);
+		return 1;
+	} else if (index + GDT_COMMAND_LEN < VGA_WIDTH && kstrncmp(curr_buff, GDT_COMMAND, GDT_COMMAND_LEN) == 0) {
+		print_gdt();
+		return 1;
+	} else if (index + GDTR_COMMAND_LEN < VGA_WIDTH && kstrncmp(curr_buff, GDTR_COMMAND, GDTR_COMMAND_LEN) == 0) {
+		print_gdtr();
 		return 1;
 	}
 
