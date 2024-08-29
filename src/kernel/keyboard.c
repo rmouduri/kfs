@@ -87,13 +87,15 @@ void save_to_history(void) {
 }
 
 void terminal_prompt(void) {
+	const uint16_t og_color = terminal_color[curr_tty];
+
 	terminal_color[curr_tty] = prompts_colors[curr_tty];
 	terminal_column[curr_tty] = 0;
 	terminal_row[curr_tty] = VGA_HEIGHT - 1;
 
 	terminal_writestring(TERMINAL_PROMPT);
 	terminal_written_column[curr_tty] = terminal_column[curr_tty];
-	terminal_color[curr_tty] = DEFAULT_COLOR;
+	terminal_color[curr_tty] = og_color;
 
 	for (int i = 0; i < VGA_WIDTH - TERMINAL_PROMPT_LEN; ++i) {
 		terminal_putentryat(EMPTY, terminal_color[curr_tty], terminal_column[curr_tty] + i, terminal_row[curr_tty]);
@@ -157,6 +159,7 @@ static inline void handle_up_press(void) {
 	}
 
 	uint16_t c = history[curr_tty][history_current_index[curr_tty]][TERMINAL_PROMPT_LEN];
+
 	terminal_column[curr_tty] = TERMINAL_PROMPT_LEN;
 	while ((terminal_column[curr_tty] < VGA_WIDTH) && (c & 0x00FF)) {
 		terminal_buffer[VGA_WIDTH * (VGA_HEIGHT - 1) + terminal_column[curr_tty]] = c;
@@ -187,19 +190,90 @@ inline void swap_tty(const uint8_t new_tty) {
 	update_cursor(terminal_column[curr_tty], terminal_row[curr_tty]);
 }
 
-static inline void display_full_history(void) {
-	for (int i = 0; i < VGA_HEIGHT - 1; ++i) {
+static inline void display_full_history(const int gap) {
+	for (int i = 0; i < VGA_HEIGHT - gap; ++i) {
 		for (int j = 0; j < VGA_WIDTH; ++j) {
-			terminal_buffer[i * VGA_WIDTH + j] = terminal_buffer[(i + 1) * VGA_WIDTH + j];
+			terminal_buffer[i * VGA_WIDTH + j] = terminal_buffer[(i + gap) * VGA_WIDTH + j];
 		}
 	}
+}
+
+#define COLOR_COMMAND		"color "
+#define COLOR_COMMAND_LEN	6
+#define COLOR_MSG	"You are now writing in "
+
+static void write_color_msg(const char * color_str, const uint16_t color) {
+	terminal_column[curr_tty] = 0;
+	terminal_row[curr_tty] = VGA_HEIGHT - 2;
+
+	terminal_writestring(COLOR_MSG);
+	terminal_color[curr_tty] = color;
+	terminal_writestring(color_str);
+
+	while (terminal_column[curr_tty] < VGA_WIDTH - 1) {
+		terminal_putchar(' ');
+	}
+}
+
+static void change_color(uint16_t* arg_ptr) {
+	const char color_palet[16][14] = COLOR_PALET;
+
+	while (((*arg_ptr) & 0x00FF) == EMPTY && (uint32_t) arg_ptr < TERMINAL_LIMIT) {
+		++arg_ptr;
+	}
+
+	if ((uint32_t) arg_ptr < TERMINAL_LIMIT) {
+		for (int color_index = 0; color_index < 16; ++color_index) {
+			const char *	color_str = color_palet[color_index];
+			const size_t	color_len = kstrlen(color_str);
+
+			if (((uint32_t) (arg_ptr + color_len) < TERMINAL_LIMIT) && (kstrncmp(arg_ptr, color_str, color_len) == 0)) {
+				const uint16_t color = vga_entry_color(color_index, VGA_COLOR_BLACK);
+
+				display_full_history(2);
+				write_color_msg(color_str, color);
+				return ;
+			}
+		}
+	}
+
+	display_full_history(2);
+	terminal_column[curr_tty] = 0;
+	terminal_row[curr_tty] = VGA_HEIGHT - 2;
+	terminal_writestring("Invalid color");
+	while (terminal_column[curr_tty] < VGA_WIDTH - 1) {
+		terminal_putchar(' ');
+	}
+}
+
+static int check_command(void) {
+	size_t index = TERMINAL_PROMPT_LEN;
+
+	while ((terminal_buffer[VGA_WIDTH * (VGA_HEIGHT - 1) + index] & 0x00FF) == EMPTY && index < VGA_WIDTH) {
+		++index;
+	}
+
+	if (index == VGA_WIDTH) {
+		return 0;
+	}
+
+	uint16_t * curr_buff = &terminal_buffer[VGA_WIDTH * (VGA_HEIGHT - 1) + index];
+
+	if (index + COLOR_COMMAND_LEN < VGA_WIDTH && kstrncmp(curr_buff, COLOR_COMMAND, COLOR_COMMAND_LEN) == 0) {
+		change_color(curr_buff + COLOR_COMMAND_LEN);
+		return 1;
+	}
+
+	return 0;
 }
 
 static inline void handle_extended_byte(const uint8_t scan_code) {
 	switch (scan_code) {
 		case EXTENDED_ENTER_PRESS:
 			save_to_history();
-			display_full_history();
+			if (!check_command()) {
+				display_full_history(1);
+			}
 			terminal_prompt();
 			history_current_index[curr_tty] = -1;
 			break;
@@ -245,7 +319,9 @@ void isr_keyboard(void) {
 		switch (scan_code) {
 			case ENTER_PRESS:
 				save_to_history();
-				display_full_history();
+				if (!check_command()) {
+					display_full_history(1);
+				}
 				terminal_prompt();
 				history_current_index[curr_tty] = -1;
 				break;

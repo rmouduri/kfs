@@ -193,7 +193,7 @@ void kprintf(const char* format, ...) {
 		c = format[i];
 		if (c == '%') {
 			++i;
-			if(!(f = format[i])) {
+			if (!(f = format[i])) {
 				break;
 			}
 			switch (f) {
@@ -209,6 +209,9 @@ void kprintf(const char* format, ...) {
 					buffer_index = terminal_putnbr_base((int) va_arg(va_params, int), "0123456789", 10, buffer_index);
 					break;
 				case 'x':
+					buffer_index = terminal_putnbr_base((int) va_arg(va_params, int), "0123456789abcdef", 16, buffer_index);
+					break;
+				case 'X':
 					buffer_index = terminal_putnbr_base((int) va_arg(va_params, int), "0123456789ABCDEF", 16, buffer_index);
 					break;
 				case 's':
@@ -247,4 +250,18 @@ void* kmemcpy(void *dest, const void *src, size_t n) {
 	}
 
 	return (dest);
+}
+
+int	kstrncmp(const uint16_t *s1, const char *s2, const size_t n) {
+	size_t	i = 0;
+
+	if (n == 0) {
+		return 0;
+	}
+
+	while ((unsigned char) (s1[i] & 0x00FF) && (unsigned char) s2[i]
+		&& (unsigned char) (s1[i] & 0x00FF) == (unsigned char) s2[i] && i < n - 1)
+		++i;
+
+	return ((unsigned char) (s1[i] & 0x00FF) - (unsigned char) s2[i]);
 }

@@ -18,5 +18,6 @@ void    init_gdt();
 void    kmemset(void* ptr, const int8_t value, const size_t num);
 void    kprintf(const char* format, ...);
 void*   kmemcpy(void *dest, const void *src, size_t n);
+int     kstrncmp(const uint16_t *s1, const char *s2, const size_t n);
 
 #endif // _UTILS_H_

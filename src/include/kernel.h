@@ -45,7 +45,9 @@
 # define MAX_TTY		10
 # define MAX_HISTORY	32
 # define TERMINAL_PROMPT		"kfs> "
-# define TERMINAL_PROMPT_LEN	5 // strlen of TERMINAL_PROMPT
+# define TERMINAL_PROMPT_LEN	5 // kstrlen of TERMINAL_PROMPT
+# define TERMINAL_BUFFER	0xB8000
+# define TERMINAL_LIMIT		TERMINAL_BUFFER + (VGA_WIDTH * VGA_HEIGHT * 2)
 
 typedef struct InterruptDescriptorRegister32 {
 	uint16_t	size;
@@ -82,7 +84,7 @@ enum vga_color {
 	VGA_COLOR_CYAN = 3,
 	VGA_COLOR_RED = 4,
 	VGA_COLOR_MAGENTA = 5,
-	VGA_COLOR_BROWN = 6,
+	VGA_COLOR_ORANGE = 6,
 	VGA_COLOR_LIGHT_GREY = 7,
 	VGA_COLOR_DARK_GREY = 8,
 	VGA_COLOR_LIGHT_BLUE = 9,
@@ -90,7 +92,7 @@ enum vga_color {
 	VGA_COLOR_LIGHT_CYAN = 11,
 	VGA_COLOR_LIGHT_RED = 12,
 	VGA_COLOR_LIGHT_MAGENTA = 13,
-	VGA_COLOR_LIGHT_BROWN = 14,
+	VGA_COLOR_YELLOW = 14,
 	VGA_COLOR_WHITE = 15,
 };
 
@@ -113,5 +115,6 @@ void terminal_insert_char(const char c);
 void terminal_writestring(const char* data);
 uint8_t vga_entry_color(const enum vga_color fg, const enum vga_color bg);
 uint16_t vga_entry(const unsigned char uc, const uint8_t color);
+size_t kstrlen(const char* str);
 
 #endif // _KERNEL_H_

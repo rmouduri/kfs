@@ -22,7 +22,7 @@ inline uint16_t vga_entry(const unsigned char uc, const uint8_t color) {
 	return (uint16_t) uc | (uint16_t) color << 8;
 }
 
-size_t strlen(const char* str) {
+size_t kstrlen(const char* str) {
 	size_t len = 0;
 
 	while (str[len])
@@ -99,7 +99,7 @@ static inline void terminal_write(const char* data, const size_t size) {
 }
 
 inline void terminal_writestring(const char* data) {
-	terminal_write(data, strlen(data));
+	terminal_write(data, kstrlen(data));
 }
 
 void kmain(void) {

@@ -24,7 +24,7 @@
     { VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK }, \
     { VGA_COLOR_BLUE, VGA_COLOR_BLACK }, \
     { VGA_COLOR_RED, VGA_COLOR_BLACK }, \
-    { VGA_COLOR_BROWN, VGA_COLOR_BLACK }, \
+    { VGA_COLOR_ORANGE, VGA_COLOR_BLACK }, \
     { VGA_COLOR_CYAN, VGA_COLOR_BLACK }, \
     { VGA_COLOR_MAGENTA, VGA_COLOR_BLACK }, \
     { VGA_COLOR_LIGHT_BLUE, VGA_COLOR_BLACK }, \
@@ -33,6 +33,24 @@
     { VGA_COLOR_LIGHT_MAGENTA, VGA_COLOR_BLACK } \
 };
 
+# define COLOR_PALET { \
+    "black", /* VGA_COLOR_BLACK */ \
+    "blue", /* VGA_COLOR_BLUE */ \
+    "green", /* VGA_COLOR_GREEN */ \
+    "cyan", /* VGA_COLOR_CYAN */ \
+    "red", /* VGA_COLOR_RED */ \
+    "magenta", /* VGA_COLOR_MAGENTA */ \
+    "orange", /* VGA_COLOR_ORANGE */ \
+    "light_grey", /* VGA_COLOR_LIGHT_GREY */ \
+    "dark_grey", /* VGA_COLOR_DARK_GREY */ \
+    "light_blue", /* VGA_COLOR_LIGHT_BLUE */ \
+    "light_green", /* VGA_COLOR_LIGHT_GREEN */ \
+    "light_cyan", /* VGA_COLOR_LIGHT_CYAN */ \
+    "light_red", /* VGA_COLOR_LIGHT_RED */ \
+    "light_magenta", /* VGA_COLOR_LIGHT_MAGENTA */ \
+    "yellow", /* VGA_COLOR_YELLOW */ \
+    "white" /* VGA_COLOR_WHITE */ \
+}
 
 /* KEYBOARD PRESSES */
 # define LSHIFT_PRESS	0x2A
