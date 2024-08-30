@@ -254,7 +254,9 @@ static void change_color(uint16_t* arg_ptr) {
 static void print_gdt(void) {
 	uint8_t * gdt_ptr = (uint8_t *) &gdt;
 	const char hexa_base[] = "0123456789abcdef";
+	const uint8_t prev_color = terminal_color[curr_tty];
 
+	terminal_color[curr_tty] = DEFAULT_COLOR;
 	display_full_history(1 + (sizeof(GDT_t) * GDT_ENTRIES / 16) + 1);
 	terminal_column[curr_tty] = 12;
 	terminal_row[curr_tty] = VGA_HEIGHT - 1 - (sizeof(GDT_t) * GDT_ENTRIES / 16) - 1;
@@ -267,6 +269,8 @@ static void print_gdt(void) {
 			((uint32_t) gdt) + (i * 16), hexa_base, 16,
 			((VGA_HEIGHT - 1 - (sizeof(GDT_t) * GDT_ENTRIES / 16) - 1) + i) * VGA_WIDTH + 4) % 16;
 
+		terminal_column[curr_tty] += 6;
+		terminal_writestring("  ");
 		++terminal_row[curr_tty];
 	}
 
@@ -293,12 +297,16 @@ static void print_gdt(void) {
 			terminal_column[curr_tty] = 12;
 		}
 	}
+
+	terminal_color[curr_tty] = prev_color;
 }
 
 static void print_gdtr(void) {
 	uint8_t * gdtr_ptr = (uint8_t *) 0x00000800;
 	const char hexa_base[] = "0123456789abcdef";
+	const uint8_t prev_color = terminal_color[curr_tty];
 
+	terminal_color[curr_tty] = DEFAULT_COLOR;
 	display_full_history(2);
 	terminal_column[curr_tty] = 0;
 	terminal_row[curr_tty] = VGA_HEIGHT - 2;
@@ -315,6 +323,8 @@ static void print_gdtr(void) {
 		}
 		terminal_putchar(' ');
 	}
+
+	terminal_color[curr_tty] = prev_color;
 }
 
 static int check_command(void) {
