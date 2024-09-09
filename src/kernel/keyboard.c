@@ -391,6 +391,7 @@ static inline void handle_extended_byte(const uint8_t scan_code) {
 void isr_keyboard(void) {
     uint8_t scan_code = inb(0x60);
 	uint8_t c = qwerty_keyboard_table[scan_code][shift];
+	uint8_t new_tty;
 
 	#ifdef DEBUG 
 		kprintf("scan_code: 0x%x/%d\nchar: %c", scan_code, scan_code, c);
@@ -458,7 +459,7 @@ void isr_keyboard(void) {
 			case F8_PRESSED:
 			case F9_PRESSED:
 			case F10_PRESSED:
-				const uint8_t new_tty = scan_code - F1_PRESSED;
+				new_tty = scan_code - F1_PRESSED;
 				if (curr_tty != new_tty) {
 					swap_tty(new_tty);
 				}

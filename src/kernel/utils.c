@@ -186,6 +186,7 @@ void kprintf(const char* format, ...) {
 	va_list	va_params;
 	size_t	buffer_index = 0;
 	char	c, f;
+	const char *s;
 
 	va_start(va_params, format);
 	for (int i = 0; format[i]; ++i) {
@@ -214,7 +215,7 @@ void kprintf(const char* format, ...) {
 					buffer_index = terminal_putnbr_base((int) va_arg(va_params, int), "0123456789ABCDEF", 16, buffer_index);
 					break;
 				case 's':
-					const char *s = (char *) va_arg(va_params, char *);
+					s = (char *) va_arg(va_params, char *);
 					for (int s_i = 0; s[s_i]; ++s_i) {
 						terminal_putentryat(s[s_i], DEFAULT_COLOR, buffer_index % VGA_WIDTH, buffer_index / VGA_WIDTH);
 						++buffer_index;
