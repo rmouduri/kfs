@@ -1,7 +1,7 @@
 #include <stdarg.h>
 
-#include "kernel.h"
-#include "utils.h"
+#include "kernel.hpp"
+#include "utils.hpp"
 
 
 static IDTR_t	idt_register;
@@ -13,7 +13,7 @@ inline void outb(const uint16_t port, const uint8_t val) {
     __asm__ volatile ("outb %0, %1" : : "a"(val), "Nd"(port) : "memory");
 }
 
-inline uint8_t inb(uint16_t port) {
+uint8_t inb(uint16_t port) {
     uint8_t ret;
     __asm__ volatile ( "inb %w1, %b0"
                    : "=a"(ret)
@@ -134,7 +134,7 @@ void init_gdt() {
     );
 }
 
-inline void update_cursor(size_t x, size_t y) {
+void update_cursor(size_t x, size_t y) {
 	uint16_t pos = y * VGA_WIDTH + x;
 
 	outb(0x3D4, 0x0F);
@@ -143,14 +143,14 @@ inline void update_cursor(size_t x, size_t y) {
 	outb(0x3D5, (uint8_t) ((pos >> 8) & 0xFF));
 }
 
-inline void move_cursor_left(void) {
+void move_cursor_left(void) {
 	if (terminal_column[curr_tty] > 0) {
 		--terminal_column[curr_tty];
 		update_cursor(terminal_column[curr_tty], terminal_row[curr_tty]);
 	}
 }
 
-inline void move_cursor_right(void) {
+void move_cursor_right(void) {
 	if (terminal_column[curr_tty] < VGA_WIDTH - 1) {
 		++terminal_column[curr_tty];
 		update_cursor(terminal_column[curr_tty], terminal_row[curr_tty]);
@@ -175,7 +175,7 @@ size_t terminal_putnbr_base(int n, const char* base, const size_t base_len, size
 }
 
 void kmemset(void* ptr, const int8_t value, const size_t num) {
-	int8_t* c_ptr = ptr;
+	int8_t* c_ptr = reinterpret_cast<int8_t *>(ptr);
 
 	for (size_t i = 0; i < num; ++i) {
 		c_ptr[i] = value;
@@ -242,8 +242,8 @@ void kprintf(const char* format, ...) {
 
 void* kmemcpy(void *dest, const void *src, size_t n) {
 	size_t				i = -1;
-	unsigned char		*destcpy = dest;
-	const unsigned char	*srccpy = src;
+	unsigned char		*destcpy = reinterpret_cast<unsigned char *>(dest);
+	const unsigned char	*srccpy = reinterpret_cast<const unsigned char *>(src);
 
 	while (++i < n) {
 		destcpy[i] = srccpy[i];

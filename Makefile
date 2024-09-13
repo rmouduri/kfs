@@ -1,66 +1,88 @@
-BUILD_DIR		=	build
-SRC_DIR			=	src
-OBJ_DIR			=	${BUILD_DIR}/obj
-ISO_DIR			=	${BUILD_DIR}/iso
+NAME						:= kfs
+TARGET 					:= i386-elf
 
-KERNEL			=	${BUILD_DIR}/kfs.bin
-KERNEL_DEBUG	=	${BUILD_DIR}/kfs_debug.bin
-ISO				=	${BUILD_DIR}/kfs.iso
+###############################################################################
+#####   Sources                                                           #####
+###############################################################################
 
-BOOT_SRC		=	${SRC_DIR}/kernel/boot.asm
+INC_DIR					:= include
+SRC_DIR		 			:= src
+BUILD_DIR				:= build
 
-KERNEL_SRC		=	${SRC_DIR}/kernel/kernel.c
-KEYBOARD_SRC	=	${SRC_DIR}/kernel/keyboard.c
-UTILS_SRC		=	${SRC_DIR}/kernel/utils.c
+CXX_SRCS					:=\
+	$(SRC_DIR)/kernel/kernel.cpp \
+	$(SRC_DIR)/kernel/keyboard.cpp \
+	$(SRC_DIR)/kernel/utils.cpp
 
-INCLUDES		=	${SRC_DIR}/include
+ASM_SRCS					:=\
+	$(SRC_DIR)/kernel/boot.asm
 
-LINKER_SRC		=	${SRC_DIR}/utils/linker.ld
-GRUB_SRC		=	${SRC_DIR}/utils/grub.cfg
+OBJS						:=	\
+	$(ASM_SRCS:$(SRC_DIR)/%.asm=$(BUILD_DIR)/%.o) \
+	$(CXX_SRCS:$(SRC_DIR)/%.cpp=$(BUILD_DIR)/%.o) 
 
-FLAGS		=	-fno-builtin -fno-exceptions -fno-stack-protector -nostdlib -nodefaultlibs
+GRUB_CFG					:= grub.cfg
 
+###############################################################################
+#####   Instructions                                                      #####
+###############################################################################
 
-${KERNEL}:	
-	mkdir -p ${OBJ_DIR}
-	nasm -f elf32 ${BOOT_SRC} -o ${OBJ_DIR}/boot.o
-	gcc -m32 -ffreestanding ${FLAGS} -I${INCLUDES} -c ${KERNEL_SRC} -o ${OBJ_DIR}/kernel.o
-	gcc -m32 -ffreestanding ${FLAGS} -I${INCLUDES} -c ${KEYBOARD_SRC} -o ${OBJ_DIR}/keyboard.o
-	gcc -m32 -ffreestanding ${FLAGS} -I${INCLUDES} -c ${UTILS_SRC} -o ${OBJ_DIR}/utils.o
-	ld -m elf_i386 -T ${LINKER_SRC} -o ${KERNEL} ${OBJ_DIR}/boot.o ${OBJ_DIR}/kernel.o ${OBJ_DIR}/keyboard.o ${OBJ_DIR}/utils.o
+CXX 						:=\
+	$(TARGET)-gcc
+CXXFLAGS 				:=\
+	-ffreestanding -nostdlib -nostartfiles -nodefaultlibs -fno-exceptions -fno-rtti
+DEPFLAGS 				:=\
+	-MMD
+DEPS						:= $(OBJS:.o=.d)
 
-${KERNEL_DEBUG}:
-	mkdir -p ${OBJ_DIR}
-	nasm -f elf32 ${BOOT_SRC} -o ${OBJ_DIR}/boot.o
-	gcc -m32 -ffreestanding ${FLAGS} -I${INCLUDES} -c ${KERNEL_SRC} -o ${OBJ_DIR}/kernel.o
-	gcc -m32 -ffreestanding ${FLAGS} -DDEBUG -I${INCLUDES} -c ${KEYBOARD_SRC} -o ${OBJ_DIR}/keyboard.o
-	gcc -m32 -ffreestanding ${FLAGS} -I${INCLUDES} -c ${UTILS_SRC} -o ${OBJ_DIR}/utils.o
-	ld -m elf_i386 -T ${LINKER_SRC} -o ${KERNEL_DEBUG} ${OBJ_DIR}/boot.o ${OBJ_DIR}/kernel.o ${OBJ_DIR}/keyboard.o ${OBJ_DIR}/utils.o
+ASM 						:= nasm
+ASMFLAGS 				:= -f elf32
 
-all: ${KERNEL}
+LD 						:=\
+	$(TARGET)-ld
+LDFLAGS 					:=\
+	-n -m elf_i386 -T linker.ld
 
-run: all
-	qemu-system-i386 -kernel ${KERNEL}
+###############################################################################
+#####   Commands                                                          #####
+###############################################################################
 
-debug: ${KERNEL_DEBUG}
-	qemu-system-i386 -kernel ${KERNEL_DEBUG}
+all: build
 
-iso: ${KERNEL}
-	mkdir -p ${ISO_DIR}/boot/grub
-	cp ${GRUB_SRC} ${ISO_DIR}/boot/grub
-	cp ${KERNEL} ${ISO_DIR}/boot
-	grub-mkrescue -o ${ISO} ${ISO_DIR}
+$(NAME).iso: $(NAME).bin
+	mkdir -p iso/boot/grub
+	cp $(NAME).bin iso/boot
+	cp $(GRUB_CFG) iso/boot/grub
+	grub-mkrescue -o $(NAME).iso iso
 
-run-iso: iso
-	qemu-system-i386 -cdrom ${ISO}
+$(NAME).bin: $(OBJS)
+	$(LD) $(LDFLAGS) -o $@ $^
+
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.cpp
+	mkdir -p $(dir $@)
+	$(CXX) $(CXXFLAGS) -I $(INC_DIR) $(DEPFLAGS) -c $< -o $@
+
+$(BUILD_DIR)/%.o: $(SRC_DIR)/%.asm
+	mkdir -p $(dir $@)
+	$(ASM) $(ASMFLAGS) $< -o $@
+
+docker:
+	docker build cross_compiler/. -t cross_compiler
+
+build: docker
+	docker run -v "${PWD}":/workspace cross_compiler make $(NAME).iso
+
+run: build
+	qemu-system-i386 -cdrom $(NAME).iso
 
 clean:
-	rm -rf ${KERNEL} ${ISO}
+	rm -f $(OBJS) $(DEPS)
 
-fclean:
-	clear
-	rm -rf build
+fclean: clean
+	rm -f $(NAME).bin $(NAME).iso iso/$(NAME).iso iso/boot/$(NAME).bin iso/boot/grub/$(GRUB_CFG)
 
 re: fclean all
 
 .PHONY: all clean fclean re
+
+-include $(DEPS)

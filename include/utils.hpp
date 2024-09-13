@@ -19,7 +19,7 @@ void    kmemset(void* ptr, const int8_t value, const size_t num);
 void    kprintf(const char* format, ...);
 void*   kmemcpy(void *dest, const void *src, size_t n);
 int     kstrncmp(const uint16_t *s1, const char *s2, const size_t n);
-size_t terminal_putnbr_base(int n, const char* base, const size_t base_len, size_t pos);
+size_t  terminal_putnbr_base(int n, const char* base, const size_t base_len, size_t pos);
 
 extern GDT_t gdt[GDT_ENTRIES];
 

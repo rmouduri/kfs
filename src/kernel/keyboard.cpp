@@ -1,11 +1,11 @@
 #include <stdbool.h>
 
-#include "kernel.h"
-#include "keyboard.h"
-#include "utils.h"
+#include "kernel.hpp"
+#include "keyboard.hpp"
+#include "utils.hpp"
 
 
-static const uint8_t default_colors[MAX_TTY][2] = TERMINAL_PROMPT_COLORS;
+static const enum vga_color default_colors[MAX_TTY][2] = TERMINAL_PROMPT_COLORS;
 static uint8_t	prompts_colors[MAX_TTY];
 static char		qwerty_keyboard_table[128][2] = QWERTY_KEYBOARD_TABLE;
 static size_t	history_total_index[MAX_TTY];
@@ -100,6 +100,8 @@ void terminal_prompt(void) {
 	for (int i = 0; i < VGA_WIDTH - TERMINAL_PROMPT_LEN; ++i) {
 		terminal_putentryat(EMPTY, terminal_color[curr_tty], terminal_column[curr_tty] + i, terminal_row[curr_tty]);
 	}
+
+	display_42();
 }
 
 static inline void handle_down_press(void) {
@@ -232,8 +234,9 @@ static void change_color(uint16_t* arg_ptr) {
 			const char *	color_str = color_palet[color_index];
 			const size_t	color_len = kstrlen(color_str);
 
-			if (((uint32_t) (arg_ptr + color_len) <= TERMINAL_LIMIT) && (kstrncmp(arg_ptr, color_str, color_len) == 0)) {
-				const uint16_t color = vga_entry_color(color_index, VGA_COLOR_BLACK);
+			if (((uint32_t) (arg_ptr + color_len) <= TERMINAL_LIMIT) && (kstrncmp(arg_ptr, color_str, color_len) == 0)
+					&& (*(arg_ptr + color_len) & 0x00FF) == EMPTY) {
+				const uint16_t color = vga_entry_color(static_cast<vga_color>(color_index), VGA_COLOR_BLACK);
 
 				display_full_history(2);
 				write_color_msg(color_str, color);
@@ -267,7 +270,7 @@ static void print_gdt(void) {
 		terminal_writestring("0x00");
 		terminal_putnbr_base(
 			((uint32_t) gdt) + (i * 16), hexa_base, 16,
-			((VGA_HEIGHT - 1 - (sizeof(GDT_t) * GDT_ENTRIES / 16) - 1) + i) * VGA_WIDTH + 4) % 16;
+			((VGA_HEIGHT - 1 - (sizeof(GDT_t) * GDT_ENTRIES / 16) - 1) + i) * VGA_WIDTH + 4);
 
 		terminal_column[curr_tty] += 6;
 		terminal_writestring("  ");
@@ -356,14 +359,6 @@ static int check_command(void) {
 
 static inline void handle_extended_byte(const uint8_t scan_code) {
 	switch (scan_code) {
-		case EXTENDED_ENTER_PRESS:
-			save_to_history();
-			if (!check_command()) {
-				display_full_history(1);
-			}
-			terminal_prompt();
-			history_current_index[curr_tty] = -1;
-			break;
 		case DELETE_PRESS:
 			delete_next_char();
 			break;
@@ -388,7 +383,7 @@ static inline void handle_extended_byte(const uint8_t scan_code) {
 	}
 }
 
-void isr_keyboard(void) {
+extern "C" void isr_keyboard(void) {
     uint8_t scan_code = inb(0x60);
 	uint8_t c = qwerty_keyboard_table[scan_code][shift];
 	uint8_t new_tty;
@@ -449,6 +444,7 @@ void isr_keyboard(void) {
 					maj = false;
 					rdy_to_disable_maj = false;
 				}
+				break;
 			case F1_PRESSED:
 			case F2_PRESSED:
 			case F3_PRESSED:

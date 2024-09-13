@@ -107,7 +107,7 @@ extern uint16_t		tty[MAX_TTY][VGA_WIDTH * VGA_HEIGHT];
 extern uint8_t		curr_tty;
 
 
-extern void isr_wrapper();
+extern "C" void isr_wrapper();
 
 void terminal_putentryat(const char c, const uint8_t color, const size_t x, const size_t y);
 void terminal_putchar(const char c);
@@ -116,5 +116,6 @@ void terminal_writestring(const char* data);
 uint8_t vga_entry_color(const enum vga_color fg, const enum vga_color bg);
 uint16_t vga_entry(const unsigned char uc, const uint8_t color);
 size_t kstrlen(const char* str);
+void display_42(void);
 
 #endif // _KERNEL_H_

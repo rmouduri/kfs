@@ -1,8 +1,8 @@
 #include <stdbool.h>
 
-#include "kernel.h"
-#include "keyboard.h"
-#include "utils.h"
+#include "kernel.hpp"
+#include "keyboard.hpp"
+#include "utils.hpp"
 
 
 size_t		terminal_row[MAX_TTY];
@@ -28,6 +28,15 @@ size_t kstrlen(const char* str) {
 	while (str[len])
 		len++;
 	return len;
+}
+
+void display_42(void) {
+	terminal_putentryat(EMPTY, DEFAULT_COLOR, VGA_WIDTH - 3, 0);
+	terminal_putentryat('4', DEFAULT_COLOR, VGA_WIDTH - 2, 0);
+	terminal_putentryat('2', DEFAULT_COLOR, VGA_WIDTH - 1, 0);
+	terminal_putentryat(EMPTY, DEFAULT_COLOR, VGA_WIDTH - 3, 1);
+	terminal_putentryat(EMPTY, DEFAULT_COLOR, VGA_WIDTH - 2, 1);
+	terminal_putentryat(EMPTY, DEFAULT_COLOR, VGA_WIDTH - 1, 1);
 }
 
 void terminal_initialize(void) {
@@ -65,19 +74,19 @@ static inline void terminal_setcolor(const uint8_t color) {
 	terminal_color[curr_tty] = color;
 }
 
-inline void terminal_putentryat(const char c, const uint8_t color, const size_t x, const size_t y) {
+void terminal_putentryat(const char c, const uint8_t color, const size_t x, const size_t y) {
 	const size_t index = y * VGA_WIDTH + x;
 
 	terminal_buffer[index] = vga_entry(c, color);
 }
 
-inline void terminal_putchar(const char c) {
+void terminal_putchar(const char c) {
 	terminal_putentryat(c, terminal_color[curr_tty], terminal_column[curr_tty], terminal_row[curr_tty]);
 	move_cursor_right();
 }
 
-inline void terminal_insert_char(const char c) {
-	if (terminal_written_column[curr_tty] < VGA_WIDTH) {
+void terminal_insert_char(const char c) {
+	if (terminal_written_column[curr_tty] < VGA_WIDTH - 1) {
 		if (terminal_column[curr_tty] < terminal_written_column[curr_tty]) {
 			size_t written_index = terminal_row[curr_tty] * VGA_WIDTH + terminal_written_column[curr_tty];
 			size_t x = terminal_written_column[curr_tty];
@@ -98,11 +107,11 @@ static inline void terminal_write(const char* data, const size_t size) {
 	}
 }
 
-inline void terminal_writestring(const char* data) {
+void terminal_writestring(const char* data) {
 	terminal_write(data, kstrlen(data));
 }
 
-void kmain(void) {
+extern "C" int kmain(void) {
 	// Deactivate interruptions while kernel starts
 	__asm__ volatile ("cli");
 
